@@ -44,17 +44,6 @@ npm run dev
 Open **http://localhost:5173**
 
 Try the built-in sample README (intentionally bad) or paste a GitHub URL.
-
-## CV bullets (for Eldar)
-
-Pick one or combine:
-
-> Built **Meridian**, a documentation intelligence platform using TypeScript, React, and Express, automating README analysis for structure, readability, and inclusive language to improve open-source onboarding.
-
-> Developed a full-stack markdown review tool with GitHub README integration and MongoDB-backed audit history, scoring docs on heading hierarchy, link accessibility, and code example quality.
-
-> Engineered modular documentation linting rules (Flesch readability, inclusive terminology, semantic link text) with weighted scoring and actionable feedback for developer-facing content.
-
 ## API
 
 | Method | Endpoint | Body |
@@ -64,14 +53,6 @@ Pick one or combine:
 | `GET` | `/api/reviews` | List recent reviews |
 | `GET` | `/api/reviews/:id` | Full review |
 
-## Why this vs copying someone else's project
-
-Nurzhan's projects (AIna, ClubHub) are strong because they solve a **real problem** with a **full stack** you can demo. Meridian is the same idea but **original**:
-
-- AIna = accessibility for **websites**
-- Meridian = quality for **documentation**
-
-Different domain, same resume weight.
 
 ## License
 
