@@ -1,6 +1,6 @@
 # Meridian
 
-**Documentation intelligence for developers** — by Eldar.
+**Documentation intelligence for developers** - wwwwwwww
 
 Meridian reviews READMEs and markdown for structure, readability, link quality, inclusive language, and code examples. Paste your docs or point at a GitHub repo and get a score, grade, and actionable feedback.
 
