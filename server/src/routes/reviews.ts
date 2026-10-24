@@ -22,9 +22,13 @@ router.get("/:id", async (req, res) => {
 });
 
 router.post("/markdown", async (req, res) => {
-  const { markdown, label } = req.body as { markdown?: string; label?: string };
-  if (!markdown?.trim()) {
+  const { markdown, label } = (req.body ?? {}) as { markdown?: unknown; label?: unknown };
+  if (typeof markdown !== "string" || !markdown.trim()) {
     res.status(400).json({ error: "Markdown content is required" });
+    return;
+  }
+  if (label != null && typeof label !== "string") {
+    res.status(400).json({ error: "Label must be a string" });
     return;
   }
 
@@ -39,8 +43,8 @@ router.post("/markdown", async (req, res) => {
 });
 
 router.post("/github", async (req, res) => {
-  const { url } = req.body as { url?: string };
-  if (!url) {
+  const { url } = (req.body ?? {}) as { url?: unknown };
+  if (typeof url !== "string" || !url.trim()) {
     res.status(400).json({ error: "GitHub URL is required" });
     return;
   }
