@@ -251,11 +251,31 @@ function checkInclusivity(text: string, lines: string[]): Finding[] {
 
 function checkCodeBlocks(markdown: string, lines: string[]): Finding[] {
   const findings: Finding[] = [];
-  const fencePattern = /```(\w*)/g;
-  let match;
-  while ((match = fencePattern.exec(markdown)) !== null) {
-    if (!match[1]) {
-      const lineNum = markdown.slice(0, match.index).split("\n").length;
+  let openFence: { marker: string; length: number } | null = null;
+  let hasCodeExample = false;
+
+  lines.forEach((line, index) => {
+    const match = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (!match) return;
+    const [, fence, info] = match;
+
+    if (openFence) {
+      if (
+        fence[0] === openFence.marker &&
+        fence.length >= openFence.length &&
+        !info.trim()
+      ) {
+        openFence = null;
+      }
+      return;
+    }
+
+    // Backticks cannot appear in the info string of a backtick fence.
+    if (fence[0] === "`" && info.includes("`")) return;
+    openFence = { marker: fence[0], length: fence.length };
+    hasCodeExample = true;
+    if (!info.trim()) {
+      const lineNum = index + 1;
       findings.push({
         id: "unlabeled-code",
         category: "code",
@@ -265,9 +285,8 @@ function checkCodeBlocks(markdown: string, lines: string[]): Finding[] {
         line: lineNum,
       });
     }
-  }
+  });
 
-  const hasCodeExample = /```[\s\S]*?```/.test(markdown);
   if (markdown.length > 400 && !hasCodeExample) {
     findings.push({
       id: "no-code-example",
