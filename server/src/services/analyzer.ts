@@ -402,9 +402,26 @@ export async function fetchGithubReadme(repoUrl: string): Promise<{ markdown: st
   try {
     const parsed = new URL(repoUrl);
     const parts = parsed.pathname.replace(/^\//, "").split("/").filter(Boolean);
-    if (parts.length < 2) throw new Error("Invalid GitHub URL");
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.hostname !== "github.com" ||
+      parsed.port ||
+      parsed.username ||
+      parsed.password ||
+      parts.length !== 2
+    ) {
+      throw new Error("Invalid GitHub URL");
+    }
     owner = parts[0];
     repo = parts[1].replace(/\.git$/, "");
+    if (
+      !/^[a-z\d](?:[a-z\d-]*[a-z\d])?$/i.test(owner) ||
+      !/^[a-z\d_.-]+$/i.test(repo) ||
+      repo === "." ||
+      repo === ".."
+    ) {
+      throw new Error("Invalid owner or repository name");
+    }
   } catch {
     throw new Error("Invalid GitHub repository URL");
   }
