@@ -38,24 +38,65 @@ for (const url of [
     });
     assert.deepEqual(await fetchGithubReadme(url), {
       markdown: "# Meridian",
-      source: "github.com/wuser-lab/meridian (main)",
+      source: "github.com/wuser-lab/meridian (default branch)",
     });
     assert.deepEqual(requests, [
-      "https://raw.githubusercontent.com/wuser-lab/meridian/main/README.md",
+      "https://api.github.com/repos/wuser-lab/meridian/readme",
     ]);
   });
 }
 
-test("retains the master-branch fallback after URL validation", async (t) => {
+test("asks GitHub for the preferred README without assuming a branch or filename", async (t) => {
   const requests: string[] = [];
-  t.mock.method(globalThis, "fetch", async (input: unknown) => {
+  t.mock.method(globalThis, "fetch", async (input: unknown, options?: RequestInit) => {
     const url = String(input);
     requests.push(url);
-    return url.includes("/main/")
-      ? new Response("Not found", { status: 404 })
-      : new Response("# Legacy", { status: 200 });
+    if (url !== "https://api.github.com/repos/owner/project/readme") {
+      return new Response("Not found", { status: 404 });
+    }
+    assert.equal(new Headers(options?.headers).get("Accept"), "application/vnd.github.raw+json");
+    assert.ok(options?.signal instanceof AbortSignal);
+    return new Response("# Docs from the release branch\n\nA .github/readme.md file.", { status: 200 });
   });
-  const result = await fetchGithubReadme("https://github.com/owner/legacy");
-  assert.equal(result.source, "github.com/owner/legacy (master)");
-  assert.equal(requests.length, 2);
+  const result = await fetchGithubReadme("https://github.com/owner/project");
+  assert.deepEqual(result, {
+    markdown: "# Docs from the release branch\n\nA .github/readme.md file.",
+    source: "github.com/owner/project (default branch)",
+  });
+  assert.deepEqual(requests, ["https://api.github.com/repos/owner/project/readme"]);
+});
+
+test("a missing README reports the problem without trying guessed branches", async (t) => {
+  const request = t.mock.method(globalThis, "fetch", async () => new Response("Not found", { status: 404 }));
+  await assert.rejects(fetchGithubReadme("https://github.com/owner/project"), /public README.*owner\/project/);
+  assert.equal(request.mock.callCount(), 1);
+});
+
+for (const status of [403, 429]) {
+  test(`GitHub rate limits produce a retry message (HTTP ${status})`, async (t) => {
+    t.mock.method(globalThis, "fetch", async () => new Response("Rate limited", {
+      status, headers: { "x-ratelimit-remaining": "0" },
+    }));
+    await assert.rejects(fetchGithubReadme("https://github.com/owner/project"), /rate limit.*try again/i);
+  });
+}
+
+test("upstream failures include the HTTP status without treating the body as markdown", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => new Response("Internal error detail", { status: 503 }));
+  await assert.rejects(fetchGithubReadme("https://github.com/owner/project"), /GitHub.*503/);
+});
+
+test("empty README contents are rejected", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => new Response(" \n\t ", { status: 200 }));
+  await assert.rejects(fetchGithubReadme("https://github.com/owner/project"), /README is empty/);
+});
+
+test("network failures give an actionable error", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => { throw new TypeError("fetch failed"); });
+  await assert.rejects(fetchGithubReadme("https://github.com/owner/project"), /Could not contact GitHub/);
+});
+
+test("request timeouts give a retry message", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => { throw new DOMException("Deadline reached", "TimeoutError"); });
+  await assert.rejects(fetchGithubReadme("https://github.com/owner/project"), /timed out.*try again/i);
 });

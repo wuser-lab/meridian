@@ -437,26 +437,37 @@ export async function fetchGithubReadme(repoUrl: string): Promise<{ markdown: st
     throw new Error("Invalid GitHub repository URL");
   }
 
-  const branches = ["main", "master"];
-  let markdown: string | null = null;
-  let branch = "main";
-
-  for (const b of branches) {
-    const url = `https://raw.githubusercontent.com/${owner}/${repo}/${b}/README.md`;
-    const res = await fetch(url);
-    if (res.ok) {
-      markdown = await res.text();
-      branch = b;
-      break;
+  let response: Response;
+  let markdown = "";
+  try {
+    response = await fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, {
+      headers: { Accept: "application/vnd.github.raw+json", "User-Agent": "Meridian" },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) markdown = await response.text();
+    else await response.body?.cancel();
+  } catch (error) {
+    if (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) {
+      throw new Error("GitHub README request timed out. Please try again.");
     }
+    throw new Error("Could not contact GitHub. Check your connection and try again.");
   }
 
-  if (!markdown) {
-    throw new Error(`Could not fetch README.md from ${owner}/${repo}`);
+  if (response.status === 404) {
+    throw new Error(`Could not find a public README in ${owner}/${repo}.`);
+  }
+  if (response.status === 429 || (response.status === 403 && response.headers.get("x-ratelimit-remaining") === "0")) {
+    throw new Error("GitHub's rate limit was reached. Please try again later or paste the Markdown directly.");
+  }
+  if (!response.ok) {
+    throw new Error(`GitHub could not load this README (HTTP ${response.status}). Please try again later.`);
+  }
+  if (!markdown.trim()) {
+    throw new Error("The repository README is empty.");
   }
 
   return {
     markdown,
-    source: `github.com/${owner}/${repo} (${branch})`,
+    source: `github.com/${owner}/${repo} (default branch)`,
   };
 }
