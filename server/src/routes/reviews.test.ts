@@ -61,3 +61,58 @@ test("valid markdown still creates a review with the default source", async (t) 
   assert.equal(result.source, "Pasted markdown");
   assert.equal(create.mock.callCount(), 1);
 });
+
+test("history read failures return a JSON error instead of hanging", async (t) => {
+  t.mock.method(Review, "find", () => ({
+    sort: () => ({ limit: () => ({ select: async () => {
+      throw new Error("Database connection unavailable");
+    } }) }),
+  }));
+  const base = await startServer(t);
+  const response = await fetch(base, { signal: AbortSignal.timeout(1000) });
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), { error: "Failed to load review history" });
+});
+
+test("malformed review IDs return 400 without querying the database", async (t) => {
+  const find = t.mock.method(Review, "findById", async () => {
+    throw new Error("Invalid IDs must not reach the database");
+  });
+  const base = await startServer(t);
+  for (const id of ["not-an-id", "0123456789ab", "g".repeat(24)]) {
+    const response = await fetch(`${base}/${id}`, { signal: AbortSignal.timeout(1000) });
+    assert.equal(response.status, 400, id);
+    assert.deepEqual(await response.json(), { error: "Invalid review ID" });
+  }
+  assert.equal(find.mock.callCount(), 0);
+});
+
+test("individual review read failures return a JSON error", async (t) => {
+  t.mock.method(Review, "findById", async () => {
+    throw new Error("Database connection unavailable");
+  });
+  const base = await startServer(t);
+  const response = await fetch(`${base}/507f1f77bcf86cd799439011`, {
+    signal: AbortSignal.timeout(1000),
+  });
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), { error: "Failed to load review" });
+});
+
+test("a valid but missing review still returns 404", async (t) => {
+  t.mock.method(Review, "findById", async () => null);
+  const base = await startServer(t);
+  const response = await fetch(`${base}/507f1f77bcf86cd799439011`);
+  assert.equal(response.status, 404);
+  assert.deepEqual(await response.json(), { error: "Review not found" });
+});
+
+test("a valid review is returned unchanged", async (t) => {
+  const document = { _id: "507F1F77BCF86CD799439011", title: "Saved review", score: 90 };
+  const find = t.mock.method(Review, "findById", async () => document);
+  const base = await startServer(t);
+  const response = await fetch(`${base}/${document._id}`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), document);
+  assert.equal(find.mock.calls[0].arguments[0], document._id);
+});
