@@ -5,20 +5,32 @@ import { analyzeMarkdown, fetchGithubReadme } from "../services/analyzer.js";
 const router = Router();
 
 router.get("/", async (_req, res) => {
-  const reviews = await Review.find()
-    .sort({ createdAt: -1 })
-    .limit(20)
-    .select("-findings");
-  res.json(reviews);
+  try {
+    const reviews = await Review.find()
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select("-findings");
+    res.json(reviews);
+  } catch {
+    res.status(500).json({ error: "Failed to load review history" });
+  }
 });
 
 router.get("/:id", async (req, res) => {
-  const review = await Review.findById(req.params.id);
-  if (!review) {
-    res.status(404).json({ error: "Review not found" });
+  if (!/^[a-f\d]{24}$/i.test(req.params.id)) {
+    res.status(400).json({ error: "Invalid review ID" });
     return;
   }
-  res.json(review);
+  try {
+    const review = await Review.findById(req.params.id);
+    if (!review) {
+      res.status(404).json({ error: "Review not found" });
+      return;
+    }
+    res.json(review);
+  } catch {
+    res.status(500).json({ error: "Failed to load review" });
+  }
 });
 
 router.post("/markdown", async (req, res) => {
