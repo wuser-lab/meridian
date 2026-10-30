@@ -18,7 +18,7 @@ Bad READMEs kill open-source projects. New contributors bounce when docs are unc
 - **Readability scoring** — Flesch reading ease + grade level
 - **Link quality** — empty/vague link text detection
 - **Inclusive language** — flags terms like blacklist/whitelist with suggestions
-- **Code block checks** — language tags, missing examples
+- **Code block checks** — language tags, missing examples; fenced examples are excluded from prose warnings and reading metrics, with original line numbers preserved
 - **Review history** — saved in MongoDB
 
 ## Stack

@@ -113,7 +113,7 @@ function checkStructure(markdown: string, lines: string[]): Finding[] {
 
   const hasInstall = /install|getting started|quick start/i.test(markdown);
   const hasUsage = /usage|example|how to/i.test(markdown);
-  if (markdown.length > 500 && (!hasInstall || !hasUsage)) {
+  if (markdown.replace(/\s+/g, " ").trim().length > 500 && (!hasInstall || !hasUsage)) {
     findings.push({
       id: "missing-standard-sections",
       category: "structure",
@@ -216,7 +216,7 @@ function checkLinks(lines: string[]): Finding[] {
   return findings;
 }
 
-function checkInclusivity(text: string, lines: string[]): Finding[] {
+function checkInclusivity(text: string): Finding[] {
   const findings: Finding[] = [];
   const lower = text.toLowerCase();
 
@@ -236,7 +236,7 @@ function checkInclusivity(text: string, lines: string[]): Finding[] {
     }
   }
 
-  if (!/contribut|conduct|license/i.test(text) && text.length > 800) {
+  if (!/contribut|conduct|license/i.test(text) && text.replace(/\s+/g, " ").trim().length > 800) {
     findings.push({
       id: "no-contributing",
       category: "inclusivity",
@@ -249,45 +249,56 @@ function checkInclusivity(text: string, lines: string[]): Finding[] {
   return findings;
 }
 
-function checkCodeBlocks(markdown: string, lines: string[]): Finding[] {
-  const findings: Finding[] = [];
+interface CodeBlockScan {
+  proseLines: string[];
+  unlabeledLines: number[];
+  hasCodeExample: boolean;
+}
+
+function scanFencedCode(lines: string[]): CodeBlockScan {
   let openFence: { marker: string; length: number } | null = null;
   let hasCodeExample = false;
+  const unlabeledLines: number[] = [];
 
-  lines.forEach((line, index) => {
+  // Blank masked lines preserve source positions for all prose findings.
+  const proseLines = lines.map((line, index) => {
     const match = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
-    if (!match) return;
-    const [, fence, info] = match;
-
     if (openFence) {
       if (
-        fence[0] === openFence.marker &&
-        fence.length >= openFence.length &&
-        !info.trim()
+        match &&
+        match[1][0] === openFence.marker &&
+        match[1].length >= openFence.length &&
+        !match[2].trim()
       ) {
         openFence = null;
       }
-      return;
+      return "";
     }
+    if (!match) return line;
+    const [, fence, info] = match;
 
     // Backticks cannot appear in the info string of a backtick fence.
-    if (fence[0] === "`" && info.includes("`")) return;
+    if (fence[0] === "`" && info.includes("`")) return line;
     openFence = { marker: fence[0], length: fence.length };
     hasCodeExample = true;
-    if (!info.trim()) {
-      const lineNum = index + 1;
-      findings.push({
-        id: "unlabeled-code",
-        category: "code",
-        severity: "info",
-        message: `Code fence without language tag (line ${lineNum}).`,
-        suggestion: "Add a language hint: ```bash, ```typescript, etc.",
-        line: lineNum,
-      });
-    }
+    if (!info.trim()) unlabeledLines.push(index + 1);
+    return "";
   });
 
-  if (markdown.length > 400 && !hasCodeExample) {
+  return { proseLines, unlabeledLines, hasCodeExample };
+}
+
+function checkCodeBlocks(markdown: string, code: CodeBlockScan): Finding[] {
+  const findings: Finding[] = code.unlabeledLines.map(line => ({
+    id: "unlabeled-code",
+    category: "code",
+    severity: "info",
+    message: `Code fence without language tag (line ${line}).`,
+    suggestion: "Add a language hint: ```bash, ```typescript, etc.",
+    line,
+  }));
+
+  if (markdown.length > 400 && !code.hasCodeExample) {
     findings.push({
       id: "no-code-example",
       category: "code",
@@ -359,9 +370,9 @@ function generateFeedback(
 }
 
 export function analyzeMarkdown(markdown: string, source: string): AnalysisResult {
-  const lines = markdown.split("\n");
-  const plainText = markdown
-    .replace(/```[\s\S]*?```/g, " ")
+  const code = scanFencedCode(markdown.split(/\r\n|\n|\r/));
+  const prose = code.proseLines.join("\n");
+  const plainText = prose
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/[#*_`>-]/g, " ")
     .replace(/\s+/g, " ")
@@ -369,14 +380,14 @@ export function analyzeMarkdown(markdown: string, source: string): AnalysisResul
 
   const wordCount = (plainText.match(/\b[\w']+\b/g) ?? []).length;
   const flesch = fleschReadingEase(plainText);
-  const title = extractTitle(markdown);
+  const title = extractTitle(prose);
 
   const findings = [
-    ...checkStructure(markdown, lines),
+    ...checkStructure(prose, code.proseLines),
     ...checkReadability(plainText, flesch),
-    ...checkLinks(lines),
-    ...checkInclusivity(markdown, lines),
-    ...checkCodeBlocks(markdown, lines),
+    ...checkLinks(code.proseLines),
+    ...checkInclusivity(prose),
+    ...checkCodeBlocks(markdown, code),
   ];
 
   const score = computeScore(findings);
