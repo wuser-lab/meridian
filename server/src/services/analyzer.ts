@@ -174,7 +174,7 @@ function checkReadability(text: string, flesch: number): Finding[] {
 
 function checkLinks(lines: string[]): Finding[] {
   const findings: Finding[] = [];
-  const linkPattern = /\[([^\]]*)\]\(([^)]+)\)/g;
+  const linkPattern = /\[([^\]]*)\]\(([^)]*)\)/g;
 
   lines.forEach((line, i) => {
     let match;
