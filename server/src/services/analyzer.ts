@@ -1,3 +1,4 @@
+import { Lexer } from "marked";
 import type { Finding, ReviewFeedback } from "../models/Review.js";
 
 export interface AnalysisResult {
@@ -56,17 +57,26 @@ function readingLevelLabel(score: number): string {
   return "Very difficult (graduate)";
 }
 
-function extractTitle(markdown: string): string {
-  const match = markdown.match(/^#\s+(.+)$/m);
-  return match ? match[1].trim() : "Untitled Document";
+interface Heading { line: number; level: number; text: string }
+
+function scanHeadings(markdown: string): Heading[] {
+  const headings: Heading[] = [];
+  let offset = 0;
+  for (const token of Lexer.lex(markdown)) {
+    if (token.type === "heading") {
+      headings.push({
+        line: markdown.slice(0, offset).split("\n").length,
+        level: token.depth,
+        text: token.text.trim(),
+      });
+    }
+    offset += token.raw.length;
+  }
+  return headings;
 }
 
-function checkStructure(markdown: string, lines: string[]): Finding[] {
+function checkStructure(markdown: string, headings: Heading[]): Finding[] {
   const findings: Finding[] = [];
-  const headings = lines
-    .map((line, i) => ({ line: i + 1, level: line.match(/^(#{1,6})\s/)?.[1].length }))
-    .filter((h): h is { line: number; level: number } => h.level !== undefined);
-
   if (!headings.some((h) => h.level === 1)) {
     findings.push({
       id: "missing-h1",
@@ -101,7 +111,7 @@ function checkStructure(markdown: string, lines: string[]): Finding[] {
     }
   }
 
-  if (!markdown.match(/^##?\s/m)) {
+  if (!headings.some(heading => heading.level <= 2)) {
     findings.push({
       id: "no-sections",
       category: "structure",
@@ -380,10 +390,11 @@ export function analyzeMarkdown(markdown: string, source: string): AnalysisResul
 
   const wordCount = (plainText.match(/\b[\w']+\b/g) ?? []).length;
   const flesch = fleschReadingEase(plainText);
-  const title = extractTitle(prose);
+  const headings = scanHeadings(prose);
+  const title = headings.find(heading => heading.level === 1)?.text ?? "Untitled Document";
 
   const findings = [
-    ...checkStructure(prose, code.proseLines),
+    ...checkStructure(prose, headings),
     ...checkReadability(plainText, flesch),
     ...checkLinks(code.proseLines),
     ...checkInclusivity(prose),
