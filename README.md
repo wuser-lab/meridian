@@ -12,7 +12,7 @@ Bad READMEs kill open-source projects. New contributors bounce when docs are unc
 
 - **Markdown review** — paste any README or doc
 - **GitHub integration** — analyze a public repository's preferred README from its default branch, including other branch names and README locations
-- **Structure linting** — heading hierarchy, required sections
+- **Structure linting** — heading hierarchy, required sections; supports ATX (`# Title`) and Setext (underlined) headings
 - **Readability scoring** — Flesch reading ease + grade level
 - **Link quality** — empty/vague link text detection
 - **Inclusive language** — flags terms like blacklist/whitelist with suggestions
