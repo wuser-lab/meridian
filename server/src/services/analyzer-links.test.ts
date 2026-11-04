@@ -33,3 +33,28 @@ test("blank and hash destinations are still placeholders; real URLs are not", ()
 test("empty links inside fenced examples do not produce prose warnings", () => {
   assert.deepEqual(linkFindings("# Demo\n```markdown\n[here]()\n[]()\n```"), []);
 });
+
+test("inline code examples and images do not generate link findings", () => {
+  assert.deepEqual(linkFindings('`[here](#)` and ``[](url)``\n![here](#)\n![](image.png)'), []);
+});
+
+test("escaped Markdown is not treated as a link", () => {
+  assert.deepEqual(linkFindings('\\[here](#)'), []);
+});
+
+test("real links alongside code examples retain their source lines", () => {
+  assert.deepEqual(linkFindings('# Title\n\n`[here](#)` and [here](#)'), [
+    { id: "vague-link-text", line: 3 }, { id: "placeholder-link", line: 3 },
+  ]);
+});
+
+test("links nested in emphasis and empty destinations are still checked", () => {
+  assert.deepEqual(linkFindings('**[here](https://example.com)**\n[Docs]()\n[](https://example.com)'), [
+    { id: "vague-link-text", line: 1 }, { id: "placeholder-link", line: 2 },
+    { id: "empty-link-text", line: 3 },
+  ]);
+});
+
+test("a destination containing parentheses is not truncated into a placeholder", () => {
+  assert.deepEqual(linkFindings('[Docs](https://example.com/page_(one))'), []);
+});
