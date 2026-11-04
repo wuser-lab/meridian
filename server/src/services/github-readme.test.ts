@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fetchGithubReadme } from "./analyzer.js";
+import { MAX_README_BYTES, ReadmeTooLargeError } from "./readme-body.js";
+
+test("oversized downloads preserve an actionable size error", async (t) => {
+  t.mock.method(globalThis, "fetch", async () => new Response("a".repeat(MAX_README_BYTES + 1)));
+  await assert.rejects(fetchGithubReadme("https://github.com/owner/project"), ReadmeTooLargeError);
+});
 
 test("rejects unrelated hosts and malformed URLs before making a request", async (t) => {
   const fetchMock = t.mock.method(globalThis, "fetch", async () => {

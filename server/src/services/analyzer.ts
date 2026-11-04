@@ -1,4 +1,5 @@
 import { Lexer, type Token } from "marked";
+import { readReadmeBody, ReadmeTooLargeError } from "./readme-body.js";
 import type { Finding, ReviewFeedback } from "../models/Review.js";
 
 export interface AnalysisResult {
@@ -461,9 +462,10 @@ export async function fetchGithubReadme(repoUrl: string): Promise<{ markdown: st
       headers: { Accept: "application/vnd.github.raw+json", "User-Agent": "Meridian" },
       signal: AbortSignal.timeout(10_000),
     });
-    if (response.ok) markdown = await response.text();
+    if (response.ok) markdown = await readReadmeBody(response);
     else await response.body?.cancel();
   } catch (error) {
+    if (error instanceof ReadmeTooLargeError) throw error;
     if (error instanceof Error && ["TimeoutError", "AbortError"].includes(error.name)) {
       throw new Error("GitHub README request timed out. Please try again.");
     }

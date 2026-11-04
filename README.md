@@ -43,7 +43,7 @@ Open **http://localhost:5173**
 
 Try the built-in sample README (intentionally bad) or paste a GitHub URL.
 
-GitHub lookup uses the public README API with a 10-second timeout. Private repositories require pasting the Markdown instead. If GitHub's unauthenticated API rate limit is reached, wait and retry or use the Markdown input.
+GitHub lookup uses the public README API with a 10-second timeout and a 2 MiB download limit. Larger READMEs stop downloading and can be reviewed by pasting a smaller section instead. Private repositories require pasting the Markdown instead. If GitHub's unauthenticated API rate limit is reached, wait and retry or use the Markdown input.
 
 ## API
 
