@@ -45,6 +45,20 @@ Try the built-in sample README (intentionally bad) or paste a GitHub URL.
 
 GitHub lookup uses the public README API with a 10-second timeout and a 2 MiB download limit. Larger READMEs stop downloading and can be reviewed by pasting a smaller section instead. Private repositories require pasting the Markdown instead. If GitHub's unauthenticated API rate limit is reached, wait and retry or use the Markdown input.
 
+## Automated verification
+
+Pull requests and pushes to `main` run the server regression tests and build
+both the server and client on Node.js 24. CI installs dependencies using the
+committed pnpm lockfiles. To reproduce its checks locally with pnpm 11.25.0:
+
+```bash
+pnpm --dir server install --frozen-lockfile
+pnpm --dir client install --frozen-lockfile
+pnpm --dir server test
+pnpm --dir server build
+pnpm --dir client build
+```
+
 ## API
 
 | Method | Endpoint | Body |
