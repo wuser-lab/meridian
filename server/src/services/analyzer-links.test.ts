@@ -2,34 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { analyzeMarkdown } from "./analyzer.js";
 
-function linkFindings(markdown: string) {
-  return analyzeMarkdown(markdown, "test").findings
-    .filter(finding => finding.category === "links")
-    .map(({ id, line }) => ({ id, line }));
-}
+const links = (markdown: string) => analyzeMarkdown(markdown, "test").findings
+  .filter(f => f.category === "links").map(({ id, line }) => ({ id, line }));
 
-test("empty destinations receive placeholder warnings, including vague labels", () => {
-  assert.deepEqual(linkFindings("# Demo\n\n[here]()\n[API docs]()"), [
-    { id: "vague-link-text", line: 3 },
-    { id: "placeholder-link", line: 3 },
-    { id: "placeholder-link", line: 4 },
+test("inline code examples and images do not generate link findings", () => {
+  assert.deepEqual(links('`[here](#)` and ``[](url)``\n![here](#)\n![](image.png)'), []);
+});
+
+test("escaped Markdown is not treated as a link", () => {
+  assert.deepEqual(links('\\[here](#)'), []);
+});
+
+test("real links alongside code examples retain their source lines", () => {
+  assert.deepEqual(links('# Title\n\n`[here](#)` and [here](#)'), [
+    { id: "vague-link-text", line: 3 }, { id: "placeholder-link", line: 3 },
   ]);
 });
 
-test("a link missing both its label and destination reports both problems", () => {
-  assert.deepEqual(linkFindings("# Demo\n[]()"), [
-    { id: "empty-link-text", line: 2 },
-    { id: "placeholder-link", line: 2 },
+test("links nested in emphasis and empty destinations are still checked", () => {
+  assert.deepEqual(links('**[here](https://example.com)**\n[Docs]()\n[](https://example.com)'), [
+    { id: "vague-link-text", line: 1 }, { id: "placeholder-link", line: 2 },
+    { id: "empty-link-text", line: 3 },
   ]);
 });
 
-test("blank and hash destinations are still placeholders; real URLs are not", () => {
-  assert.deepEqual(linkFindings("# Demo\n[Docs]( )\n[Docs](#)\n[Docs](https://example.com)"), [
-    { id: "placeholder-link", line: 2 },
-    { id: "placeholder-link", line: 3 },
-  ]);
-});
-
-test("empty links inside fenced examples do not produce prose warnings", () => {
-  assert.deepEqual(linkFindings("# Demo\n```markdown\n[here]()\n[]()\n```"), []);
+test("a destination containing parentheses is not truncated into a placeholder", () => {
+  assert.deepEqual(links('[Docs](https://example.com/page_(one))'), []);
 });

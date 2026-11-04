@@ -1,4 +1,4 @@
-import { Lexer } from "marked";
+import { Lexer, type Token } from "marked";
 import type { Finding, ReviewFeedback } from "../models/Review.js";
 
 export interface AnalysisResult {
@@ -184,43 +184,49 @@ function checkReadability(text: string, flesch: number): Finding[] {
 
 function checkLinks(lines: string[]): Finding[] {
   const findings: Finding[] = [];
-  const linkPattern = /\[([^\]]*)\]\(([^)]*)\)/g;
-
   lines.forEach((line, i) => {
-    let match;
-    while ((match = linkPattern.exec(line)) !== null) {
-      const [, text, url] = match;
-      if (!text.trim()) {
-        findings.push({
-          id: "empty-link-text",
-          category: "links",
-          severity: "error",
-          message: `Empty link text on line ${i + 1}.`,
-          suggestion: 'Use descriptive text like "[API docs](url)" instead of "[](url)".',
-          line: i + 1,
-        });
+    const inspect = (tokens: Token[]) => {
+      for (const token of tokens) {
+        if (token.type !== "link") {
+          // Code spans and images are examples/alternative text, not links.
+          if (token.type !== "image" && "tokens" in token && token.tokens) inspect(token.tokens);
+          continue;
+        }
+        const text = token.text;
+        const url = token.href;
+        if (!text.trim()) {
+          findings.push({
+            id: "empty-link-text",
+            category: "links",
+            severity: "error",
+            message: `Empty link text on line ${i + 1}.`,
+            suggestion: 'Use descriptive text like "[API docs](url)" instead of "[](url)".',
+            line: i + 1,
+          });
+        }
+        if (/^(click here|here|link|read more)$/i.test(text.trim())) {
+          findings.push({
+            id: "vague-link-text",
+            category: "links",
+            severity: "warning",
+            message: `Vague link text "${text}" on line ${i + 1}.`,
+            suggestion: "Link text should describe the destination out of context.",
+            line: i + 1,
+          });
+        }
+        if (url.trim() === "#" || url.trim() === "") {
+          findings.push({
+            id: "placeholder-link",
+            category: "links",
+            severity: "warning",
+            message: `Placeholder link on line ${i + 1}.`,
+            suggestion: "Replace stub links before publishing.",
+            line: i + 1,
+          });
+        }
       }
-      if (/^(click here|here|link|read more)$/i.test(text.trim())) {
-        findings.push({
-          id: "vague-link-text",
-          category: "links",
-          severity: "warning",
-          message: `Vague link text "${text}" on line ${i + 1}.`,
-          suggestion: "Link text should describe the destination out of context.",
-          line: i + 1,
-        });
-      }
-      if (url.trim() === "#" || url.trim() === "") {
-        findings.push({
-          id: "placeholder-link",
-          category: "links",
-          severity: "warning",
-          message: `Placeholder link on line ${i + 1}.`,
-          suggestion: "Replace stub links before publishing.",
-          line: i + 1,
-        });
-      }
-    }
+    };
+    inspect(Lexer.lexInline(line));
   });
 
   return findings;
