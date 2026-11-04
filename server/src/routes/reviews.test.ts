@@ -5,6 +5,7 @@ import test, { type TestContext } from "node:test";
 import express from "express";
 import reviewRoutes from "./reviews.js";
 import { Review } from "../models/Review.js";
+import { MAX_README_BYTES } from "../services/readme-body.js";
 
 async function startServer(t: TestContext) {
   const app = express();
@@ -60,6 +61,25 @@ test("valid markdown still creates a review with the default source", async (t) 
   assert.equal(result.title, "Demo");
   assert.equal(result.source, "Pasted markdown");
   assert.equal(create.mock.callCount(), 1);
+});
+
+test("oversized GitHub READMEs return 413 without creating a review", async (t) => {
+  const base = await startServer(t);
+  const realFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (input: Parameters<typeof fetch>[0], options?: RequestInit) => {
+    if (String(input).startsWith("https://api.github.com/")) {
+      return new Response("a".repeat(MAX_README_BYTES + 1));
+    }
+    return realFetch(input, options);
+  });
+  const create = t.mock.method(Review, "create", async () => { throw new Error("Must not save oversized README"); });
+  const response = await fetch(base + "/github", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: "https://github.com/owner/project" }),
+  });
+  assert.equal(response.status, 413);
+  assert.match((await response.json()).error, /2 MiB.*smaller section/);
+  assert.equal(create.mock.callCount(), 0);
 });
 
 test("history read failures return a JSON error instead of hanging", async (t) => {

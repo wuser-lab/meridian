@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Review } from "../models/Review.js";
 import { analyzeMarkdown, fetchGithubReadme } from "../services/analyzer.js";
+import { ReadmeTooLargeError } from "../services/readme-body.js";
 
 const router = Router();
 
@@ -68,7 +69,7 @@ router.post("/github", async (req, res) => {
     res.status(201).json(review);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Analysis failed";
-    res.status(500).json({ error: message });
+    res.status(err instanceof ReadmeTooLargeError ? 413 : 500).json({ error: message });
   }
 });
 
